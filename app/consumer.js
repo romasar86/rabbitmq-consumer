@@ -1,15 +1,19 @@
 const Amqp = require("./amqp"),
-    config = require("./config");
+    config = require("./config"),
+    Events = require("./models/events"),
+    db = require("./db");
 
 class Consumer {
     static consume() {
         const amqp = new Amqp(config.queue);
-        return amqp.consume(Consumer.worker);
+        return db.connect()
+            .then(amqp.consume.bind(amqp, Consumer.worker));
     }
 
     static worker(msg) {
-        console.log(msg.content.toString());
-        return Promise.resolve();
+        const data = JSON.parse(msg.content.toString()),
+            events = new Events(data);
+        return events.save();
     }
 }
 

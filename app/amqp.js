@@ -7,15 +7,31 @@ class Amqp {
         this.options = options;
     }
 
+    get channel() {
+        return channel;
+    }
+
+    set channel(ch) {
+        channel = ch;
+    }
+
+    createConnection() {
+        return amqp.connect(`amqp://${this.options.host}:${this.options.port}`);
+    }
+
+    createChannel(connection) {
+        return connection.createChannel();
+    }
+
+    storeChannel(ch) {
+        return this.channel = ch;
+    }
+
     connect() {
-        if(channel) return Promise.resolve(channel);
-        return amqp.connect(`amqp://${this.options.host}:${this.options.port}`)
-            .then(connection => connection.createChannel())
-            .then(ch => {
-                ch.assertQueue(this.options.queueName, { durable: false });
-                channel = ch;
-                return channel;
-            });
+        if(this.channel) return Promise.resolve(this.channel);
+        return this.createConnection()
+            .then(this.createChannel.bind(this))
+            .then(this.storeChannel.bind(this));
     }
 
     consume(worker) {
@@ -23,15 +39,17 @@ class Amqp {
             return ch.consume(this.options.queueName, (msg) => {
                 if(msg) {
                     worker(msg)
-                        .then(() => ch.ack(msg))
+                        .then(() => {
+                            console.log("Message was processed");
+                            return ch.ack(msg);
+                        })
                         .catch( err => {
-                            console.log(err);
+                            console.log(err, msg);
                         });
                 }
             }, {noAck: false});
         });
     }
-
 }
 
 module.exports = Amqp;
